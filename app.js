@@ -209,22 +209,17 @@ function goalInfo(g) {
       const late = rate > 0 && rate < n.month;
       info.need = '<div class="need">💰 Чтобы успеть к ' + longDate(g.deadline) + ', откладывайте' +
         '<div class="need-big">' + esc(money(n.month)) + ' в месяц</div>' +
-        '<div class="muted">≈ ' + esc(money(n.week)) + ' в неделю' +
-        (g.autoDeadline ? ' · срок я поставил сам, его можно изменить' : '') + '</div>' +
+        (g.autoDeadline ? '<div class="muted">Срок я поставил сам, его можно изменить</div>' : '') +
         (late ? '<div class="exp">Сейчас откладываете меньше и не успеваете</div>' : '') + '</div>';
     }
   }
   return info;
 }
 
-// Сколько откладывать, чтобы собрать left к дате: в месяц и в неделю.
+// Сколько откладывать в месяц, чтобы собрать left к дате.
 function deadlineNeed(left, deadline) {
-  const days = daysBetween(today(), deadline);
-  if (days <= 0) return null;
-  return {
-    month: Math.ceil(left / monthsUntil(deadline)),
-    week: Math.ceil(left / Math.max(1, Math.ceil(days / 7))),
-  };
+  if (daysBetween(today(), deadline) <= 0) return null;
+  return { month: Math.ceil(left / monthsUntil(deadline)) };
 }
 
 // Дата через n месяцев — срок для целей, у которых нет ни даты, ни плана.
@@ -632,8 +627,7 @@ function renderGoalCalc() {
   if (!n) { $('gCalc').innerHTML = '<span class="exp">⚠️ Эта дата уже прошла</span>'; return; }
   $('gCalc').innerHTML = (auto ? '📐 Даты нет, поэтому я сам ставлю срок ' + AUTO_MONTHS + ' месяцев (до ' + longDate(deadline) + '). Откладывайте:'
     : '📐 Чтобы накопить ' + esc(money(left)) + ' к ' + longDate(deadline) + ', откладывайте:') +
-    '<div class="need-big">' + esc(money(n.month)) + ' в месяц</div>' +
-    '<div class="muted">≈ ' + esc(money(n.week)) + ' в неделю</div>';
+    '<div class="need-big">' + esc(money(n.month)) + ' в месяц</div>';
 }
 
 function renderGoalHistory(g) {
