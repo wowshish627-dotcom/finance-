@@ -16,7 +16,7 @@ const COLORS = ['#1f8a5b', '#3b7dd8', '#e0912f', '#c8452f', '#8c5ad1', '#2aa3a3'
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const MONTHS_PREP = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
-const REMIND_DAYS = [1, 10, 16, 25];  // дни пополнения копилки
+const AUTO_MONTHS = 12;  // срок для целей без даты и плана
 const CURRENCIES = { RUB: '₽', USD: '$', EUR: '€' };
 const DAY_MS = 864e5;
 const MONTH_DAYS = 30.44;
@@ -39,6 +39,11 @@ function migrate(s) {
   if (!CURRENCIES[s.currency]) {
     s.currency = s.currency === '$' ? 'USD' : s.currency === '€' ? 'EUR' : 'RUB';
   }
+  // У каждой цели должна быть точная сумма в месяц: без даты и плана ставим срок сами
+  s.goals.forEach((g) => {
+    if (!g.deadline && !g.plan) { g.deadline = inMonths(AUTO_MONTHS); g.autoDeadline = true; }
+  });
+  if (s.reminderSeen && s.reminderSeen.length !== 7) s.reminderSeen = '';  // раньше хранилась дата
   return s;
 }
 
@@ -204,36 +209,28 @@ function goalInfo(g) {
       const late = rate > 0 && rate < n.month;
       info.need = '<div class="need">💰 Чтобы успеть к ' + longDate(g.deadline) + ', откладывайте' +
         '<div class="need-big">' + esc(money(n.month)) + ' в месяц</div>' +
-        '<div class="muted">≈ ' + esc(money(n.week)) + ' в неделю · ' + esc(money(n.payment)) + ' за взнос (1, 10, 16, 25)</div>' +
+        '<div class="muted">≈ ' + esc(money(n.week)) + ' в неделю' +
+        (g.autoDeadline ? ' · срок я поставил сам, его можно изменить' : '') + '</div>' +
         (late ? '<div class="exp">Сейчас откладываете меньше и не успеваете</div>' : '') + '</div>';
     }
   }
   return info;
 }
 
-// Сколько дней пополнения (1, 10, 16, 25) осталось с сегодня до даты включительно.
-function paymentsUntil(deadline) {
-  const start = new Date(today() + 'T00:00:00');
-  const end = new Date(deadline + 'T23:59:59');
-  let n = 0;
-  for (let m = start.getMonth(), y = start.getFullYear(); new Date(y, m, 1) <= end; m++) {
-    REMIND_DAYS.forEach((day) => {
-      const t = new Date(y, m, day);
-      if (t >= start && t <= end) n++;
-    });
-  }
-  return Math.max(1, n);
-}
-
-// Сколько откладывать, чтобы собрать left к дате: в месяц, в неделю, за один взнос.
+// Сколько откладывать, чтобы собрать left к дате: в месяц и в неделю.
 function deadlineNeed(left, deadline) {
   const days = daysBetween(today(), deadline);
   if (days <= 0) return null;
   return {
     month: Math.ceil(left / monthsUntil(deadline)),
     week: Math.ceil(left / Math.max(1, Math.ceil(days / 7))),
-    payment: Math.ceil(left / paymentsUntil(deadline)),
   };
+}
+
+// Дата через n месяцев — срок для целей, у которых нет ни даты, ни плана.
+function inMonths(n) {
+  const d = new Date();
+  return iso(new Date(d.getFullYear(), d.getMonth() + n, d.getDate()));
 }
 
 function monthsUntil(date) {
@@ -269,19 +266,6 @@ function monthPlan() {
   };
 }
 
-// Сколько дней пополнения ещё впереди в этом месяце (включая сегодня).
-function remindersLeft() {
-  const d = new Date().getDate();
-  return Math.max(1, REMIND_DAYS.filter((x) => x >= d).length);
-}
-function lastReminder() {
-  const now = new Date();
-  const day = REMIND_DAYS.filter((x) => x <= now.getDate()).pop();
-  return iso(new Date(now.getFullYear(), now.getMonth(), day));
-}
-function suggestedNow(plan) {
-  return plan.rest ? Math.ceil(plan.rest / remindersLeft()) : 0;
-}
 
 // Раскладывает сумму по целям: сначала то, что нужно по срокам и планам,
 // остаток — пропорционально тому, сколько каждой цели не хватает.
@@ -461,41 +445,34 @@ function renderGoals() {
 
 function planCard() {
   const plan = monthPlan();
-  const monthIdx = new Date().getMonth();
-  let html = '<div class="card"><div class="card-title">📅 Сколько откладывать</div>';
+  const month = MONTHS_PREP[new Date().getMonth()];
+  let html = '<div class="card"><div class="card-title">📅 План на месяц</div>';
   if (plan.total) {
-    html += '<div class="plan-row"><span>В месяц по всем целям</span><b>' + money(plan.total) + '</b></div>' +
-      plan.items.filter((i) => i.need).map((i) =>
+    html += plan.items.filter((i) => i.need).map((i) =>
         '<div class="plan-row muted"><span>' + esc(i.g.name) + ' · ' + i.why + '</span><span>' + money(i.need) + '</span></div>'
       ).join('') +
-      '<div class="plan-row"><span>Осталось отложить в ' + MONTHS_PREP[monthIdx] + '</span><b class="save">' + money(plan.rest) + '</b></div>';
-    if (plan.rest) {
-      html += '<p class="note">🔔 Следующий взнос (1, 10, 16 и 25 числа): <b>' + money(suggestedNow(plan)) + '</b></p>';
-    }
-  } else {
-    html += '<p class="note muted">Укажите у целей дату или план в месяц, и я посчитаю, сколько откладывать.</p>';
+      '<div class="plan-row"><span>Всего в месяц</span><b>' + money(plan.total) + '</b></div>' +
+      '<div class="plan-row"><span>Осталось отложить в ' + month + '</span><b class="save">' + money(plan.rest) + '</b></div>';
   }
   html += '<p class="note muted">Свободно на балансе: ' + money(freeBalance()) + '</p>' +
-    '<button type="button" class="primary wide-btn dist-btn" data-dist="1">Распределить сумму по целям</button>' +
-    '<a class="cal-link" href="reminders.ics" target="_blank" rel="noopener">🔔 Напоминания в Календарь iPhone</a>';
+    '<button type="button" class="primary wide-btn dist-btn" data-dist="1">' +
+    (plan.rest ? 'Отложить ' + money(plan.rest) : 'Отложить ещё, я распределю') + '</button>' +
+    '<a class="cal-link" href="reminders.ics" target="_blank" rel="noopener">🔔 Напоминание в Календарь (раз в месяц)</a>';
   return html + '</div>';
 }
 
 function renderReminder() {
-  const last = lastReminder();
+  const key = monthKey(today());
   const plan = monthPlan();
-  const active = state.goals.some((g) => goalSaved(g) < g.target);
-  const paid = state.goals.some((g) => g.deposits.some((d) => d.amount > 0 && d.date >= last));
-  if (!active || paid || state.reminderSeen === last || (plan.total && !plan.rest)) {
+  if (!plan.rest || state.reminderSeen === key) {
     $('reminder').innerHTML = '';
     return;
   }
-  const p = last.split('-').map(Number);
-  const portion = suggestedNow(plan);
-  $('reminder').innerHTML = '<div class="card reminder"><b>🔔 ' + p[2] + ' ' + MONTHS_GEN[p[1] - 1] + ' — день копилки</b>' +
-    '<div>' + (portion ? 'Отложите ' + money(portion) + ', я распределю по целям' : 'Отложите любую сумму, я распределю её по целям') + '</div>' +
-    '<div class="goal-actions"><button type="button" class="primary" data-remind="go">Распределить</button>' +
-    '<button type="button" class="secondary" data-remind="later">Позже</button></div></div>';
+  $('reminder').innerHTML = '<div class="card reminder"><b>🐷 В ' + MONTHS_PREP[new Date().getMonth()] +
+    ' отложите ' + money(plan.rest) + '</b>' +
+    '<div class="muted">Сумму я посчитал по вашим целям и срокам и сам распределю её. Отложить можно в любой день.</div>' +
+    '<div class="goal-actions"><button type="button" class="primary" data-remind="go">Отложить</button>' +
+    '<button type="button" class="secondary" data-remind="later">Скрыть</button></div></div>';
 }
 
 function renderBudgets() {
@@ -633,21 +610,30 @@ function openGoalSheet(g) {
 // Живой расчёт в окне цели: сколько откладывать, чтобы успеть к дате.
 function renderGoalCalc() {
   const target = parseAmount($('gTarget').value);
-  const deadline = $('gDeadline').value;
-  if (!target || !deadline) {
-    $('gCalc').innerHTML = target || deadline
-      ? '<span class="muted">📐 Укажите сумму и дату, и я посчитаю, сколько откладывать</span>' : '';
+  const plan = parseAmount($('gPlan').value);
+  let deadline = $('gDeadline').value;
+  if (!target) {
+    $('gCalc').innerHTML = deadline ? '<span class="muted">📐 Укажите сумму, и я посчитаю, сколько откладывать</span>' : '';
     return;
   }
   const g = editingGoal ? state.goals.find((x) => x.id === editingGoal) : null;
   const have = (parseAmount($('gInitial').value) || 0) + (g ? depositsSum(g) : 0);
   const left = Math.max(0, target - have);
-  const n = deadlineNeed(left, deadline);
   if (!left) { $('gCalc').innerHTML = '🎉 Эта сумма уже накоплена'; return; }
+  if (!deadline && plan) {
+    const months = Math.ceil(left / plan);
+    $('gCalc').innerHTML = '📐 По ' + esc(money(plan)) + ' в месяц накопится за ' + months + ' ' +
+      plural(months, 'месяц', 'месяца', 'месяцев');
+    return;
+  }
+  const auto = !deadline;
+  if (auto) deadline = inMonths(AUTO_MONTHS);
+  const n = deadlineNeed(left, deadline);
   if (!n) { $('gCalc').innerHTML = '<span class="exp">⚠️ Эта дата уже прошла</span>'; return; }
-  $('gCalc').innerHTML = '📐 Чтобы накопить ' + esc(money(left)) + ' к ' + longDate(deadline) + ':' +
+  $('gCalc').innerHTML = (auto ? '📐 Даты нет, поэтому я сам ставлю срок ' + AUTO_MONTHS + ' месяцев (до ' + longDate(deadline) + '). Откладывайте:'
+    : '📐 Чтобы накопить ' + esc(money(left)) + ' к ' + longDate(deadline) + ', откладывайте:') +
     '<div class="need-big">' + esc(money(n.month)) + ' в месяц</div>' +
-    '<div class="muted">≈ ' + esc(money(n.week)) + ' в неделю · ' + esc(money(n.payment)) + ' за взнос (1, 10, 16, 25)</div>';
+    '<div class="muted">≈ ' + esc(money(n.week)) + ' в неделю</div>';
 }
 
 function renderGoalHistory(g) {
@@ -672,6 +658,13 @@ function submitGoal(e) {
     deadline: $('gDeadline').value || '',
     initial: parseAmount($('gInitial').value) || 0,
   };
+  const old = editingGoal ? state.goals.find((g) => g.id === editingGoal) : null;
+  if (!data.deadline && !data.plan) {
+    data.deadline = inMonths(AUTO_MONTHS);
+    data.autoDeadline = true;
+  } else {
+    data.autoDeadline = !!(old && old.autoDeadline && old.deadline === data.deadline);
+  }
   if (editingGoal) {
     Object.assign(state.goals.find((g) => g.id === editingGoal), data);
   } else {
@@ -844,9 +837,9 @@ $('reminder').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.remind === 'go') {
-    openDistSheet(suggestedNow(monthPlan()));
+    openDistSheet(monthPlan().rest);
   } else {
-    state.reminderSeen = lastReminder();
+    state.reminderSeen = monthKey(today());
     save();
     renderReminder();
   }
@@ -917,7 +910,7 @@ $('newGoal').addEventListener('click', () => openGoalSheet(null));
 $('goalsList').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
-  if (b.dataset.dist) { openDistSheet(suggestedNow(monthPlan())); return; }
+  if (b.dataset.dist) { openDistSheet(monthPlan().rest); return; }
   const id = b.dataset.edit || b.dataset.dep || b.dataset.wd;
   const g = state.goals.find((x) => x.id === id);
   if (!g) return;

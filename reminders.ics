@@ -4,13 +4,13 @@ PRODID:-//Finansy//Piggy reminders//RU
 CALSCALE:GREGORIAN
 X-WR-CALNAME:Копилка
 BEGIN:VEVENT
-UID:piggy-reminder-1-10-16-25@finansy
+UID:piggy-reminder-monthly@finansy
 DTSTAMP:20261031T000000Z
 DTSTART:20261101T100000
 DURATION:PT15M
-RRULE:FREQ=MONTHLY;BYMONTHDAY=1,10,16,25
-SUMMARY:🐷 Пополнить копилку
-DESCRIPTION:Откройте «Финансы» → Копилка → Распределить сумму по целям.
+RRULE:FREQ=MONTHLY;BYMONTHDAY=1
+SUMMARY:🐷 Отложить в копилку за месяц
+DESCRIPTION:Откройте «Финансы»: приложение покажет точную сумму на этот месяц.
 BEGIN:VALARM
 ACTION:DISPLAY
 DESCRIPTION:🐷 Пора пополнить копилку
