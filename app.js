@@ -222,14 +222,19 @@ function deadlineNeed(left, deadline) {
   return { month: Math.ceil(left / monthsUntil(deadline)) };
 }
 
-// Дата через n месяцев — срок для целей, у которых нет ни даты, ни плана.
+// Последний день месяца так, чтобы вместе с текущим вышло ровно n месяцев, —
+// срок для целей, у которых нет ни даты, ни плана.
 function inMonths(n) {
-  const d = new Date();
-  return iso(new Date(d.getFullYear(), d.getMonth() + n, d.getDate()));
+  const p = today().split('-').map(Number);
+  return iso(new Date(p[0], p[1] - 1 + n, 0));
 }
 
+// Сколько календарных месяцев на накопление, включая текущий и месяц срока:
+// с 1 ноября до 8 декабря — это ноябрь и декабрь, то есть 2.
 function monthsUntil(date) {
-  return Math.max(1, Math.round(daysBetween(today(), date) / MONTH_DAYS));
+  const now = today().split('-').map(Number);
+  const end = date.split('-').map(Number);
+  return Math.max(1, (end[0] - now[0]) * 12 + (end[1] - now[1]) + 1);
 }
 
 // План на текущий месяц: сколько класть в каждую цель (по сроку или по плану)
