@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Финансы">
+<meta name="theme-color" content="#f3f4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141615" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+<title>Финансы</title>
+</head>
+<body>
+
+<header class="top">
+  <div class="balance-label">Баланс</div>
+  <div class="balance" id="balance">0 ₽</div>
+  <div class="month-sum">
+    <span class="inc" id="mInc"></span>
+    <span class="exp" id="mExp"></span>
+    <span class="save" id="piggyLine"></span>
+  </div>
+</header>
+
+<main>
+  <div id="reminder"></div>
+
+  <section class="view active" id="view-home">
+    <div id="opsList"></div>
+  </section>
+
+  <section class="view" id="view-stats">
+    <div class="month-nav">
+      <button type="button" id="prevM" aria-label="Предыдущий месяц">‹</button>
+      <h2 id="statsTitle"></h2>
+      <button type="button" id="nextM" aria-label="Следующий месяц">›</button>
+    </div>
+    <div class="cards">
+      <div class="card"><small>Доходы</small><b class="inc" id="sInc"></b></div>
+      <div class="card"><small>Расходы</small><b class="exp" id="sExp"></b></div>
+    </div>
+    <div id="usefulCard"></div>
+    <div id="donut" class="donut"></div>
+    <div id="catList" class="card list"></div>
+  </section>
+
+  <section class="view" id="view-goals">
+    <div id="goalsList"></div>
+    <button type="button" class="primary wide-btn" id="newGoal">+ Новая цель</button>
+  </section>
+
+  <section class="view" id="view-budgets">
+    <h2>Лимиты на месяц</h2>
+    <div id="budgetList"></div>
+    <form id="budgetForm" class="card budget-form">
+      <select id="bCat" aria-label="Категория"></select>
+      <input id="bAmount" inputmode="decimal" placeholder="Сумма" aria-label="Сумма лимита">
+      <button type="submit" class="primary">Задать</button>
+    </form>
+  </section>
+
+  <section class="view" id="view-settings">
+    <h2>Настройки</h2>
+    <div class="card list">
+      <label class="row">Валюта
+        <select id="currency">
+          <option value="RUB">₽ Рубли</option>
+          <option value="USD">$ Доллары</option>
+          <option value="EUR">€ Евро</option>
+        </select>
+      </label>
+    </div>
+    <div class="card list">
+      <a class="row-btn" href="reminders.ics" target="_blank" rel="noopener">🔔 Напоминания в Календарь (1, 10, 16, 25)</a>
+      <button type="button" class="row-btn" id="exportCsv">Выгрузить в CSV (Excel)</button>
+      <button type="button" class="row-btn" id="exportJson">Сохранить резервную копию</button>
+      <label class="row-btn">Восстановить из копии
+        <input type="file" id="importJson" accept=".json,application/json" class="visually-hidden">
+      </label>
+    </div>
+    <button type="button" class="danger wide" id="clearAll">Удалить все данные</button>
+    <p class="hint">Данные хранятся только на этом телефоне. Раз в пару недель сохраняйте резервную копию в «Файлы» или себе в Telegram.</p>
+  </section>
+</main>
+
+<button type="button" class="fab" id="fab" aria-label="Добавить операцию">+</button>
+
+<nav class="tabs">
+  <button type="button" class="on" data-view="home"><span>🏠</span>Главная</button>
+  <button type="button" data-view="stats"><span>📊</span>Статистика</button>
+  <button type="button" data-view="goals"><span>🐷</span>Копилка</button>
+  <button type="button" data-view="budgets"><span>🎯</span>Лимиты</button>
+  <button type="button" data-view="settings"><span>⚙️</span>Ещё</button>
+</nav>
+
+<div class="backdrop" id="backdrop"></div>
+
+<form class="sheet" id="sheet" autocomplete="off">
+  <div class="grabber"></div>
+  <div class="seg" id="typeSeg">
+    <button type="button" data-type="exp">Расход</button>
+    <button type="button" data-type="inc">Доход</button>
+  </div>
+  <input id="amount" class="amount" inputmode="decimal" placeholder="0" aria-label="Сумма">
+  <div class="useful-seg" id="usefulSeg">
+    <button type="button" data-useful="1" class="good">👍 Нужная трата</button>
+    <button type="button" data-useful="0" class="bad">👎 Лишняя трата</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <input id="note" placeholder="Комментарий (необязательно)" aria-label="Комментарий">
+  <input id="date" type="date" aria-label="Дата">
+  <div class="sheet-actions">
+    <button type="button" class="danger" id="delBtn">Удалить</button>
+    <button type="submit" class="primary">Сохранить</button>
+  </div>
+</form>
+
+<form class="sheet" id="goalSheet" autocomplete="off">
+  <div class="grabber"></div>
+  <h3 id="goalSheetTitle">Новая цель</h3>
+  <input id="gName" placeholder="На что копим? Например: Отпуск" maxlength="30" aria-label="Название цели">
+  <input id="gTarget" inputmode="decimal" placeholder="Сколько нужно накопить" aria-label="Сумма цели">
+  <input id="gPlan" inputmode="decimal" placeholder="Откладывать в месяц (если нет даты)" aria-label="План в месяц">
+  <label class="field-label" for="gDeadline">Накопить к дате (необязательно)</label>
+  <input id="gDeadline" type="date">
+  <input id="gInitial" inputmode="decimal" placeholder="Уже накоплено раньше (необязательно)" aria-label="Уже накоплено">
+  <p class="field-hint">«Уже накоплено» — деньги, которые и так лежат отдельно. Из баланса они не вычитаются.</p>
+  <div id="gCalc" class="calc"></div>
+  <div id="gHistory"></div>
+  <div class="sheet-actions">
+    <button type="button" class="danger" id="gDel">Удалить</button>
+    <button type="submit" class="primary">Сохранить</button>
+  </div>
+</form>
+
+<form class="sheet" id="moneySheet" autocomplete="off">
+  <div class="grabber"></div>
+  <h3 id="moneyTitle"></h3>
+  <input id="mAmount" class="amount" inputmode="decimal" placeholder="0" aria-label="Сумма">
+  <div class="muted center" id="mInfo"></div>
+  <div class="sheet-actions">
+    <button type="button" class="secondary" id="mAll">Всё</button>
+    <button type="submit" class="primary" id="mSubmit">Готово</button>
+  </div>
+</form>
+
+<form class="sheet" id="distSheet" autocomplete="off">
+  <div class="grabber"></div>
+  <h3>Распределить по целям</h3>
+  <input id="dAmount" class="amount" inputmode="decimal" placeholder="0" aria-label="Сумма">
+  <div class="muted center" id="dFree"></div>
+  <div class="card list dist-preview" id="dPreview"></div>
+  <div class="sheet-actions">
+    <button type="submit" class="primary">Отложить</button>
+  </div>
+</form>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
